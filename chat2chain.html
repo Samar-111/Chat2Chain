@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat2Chain - Your Blockchain Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .message-animation {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+        }
+        .chat-container {
+            height: calc(100vh - 180px);
+        }
+        @media (max-width: 640px) {
+            .chat-container {
+                height: calc(100vh - 160px);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="gradient-bg text-white p-4 shadow-lg">
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/899f5055-f022-463c-921b-a0cc0480da45.png" alt="Chat2Chain logo" class="rounded-full w-8 h-8" />
+                    <h1 class="text-xl font-bold">Chat2Chain</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="network-toggle" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-3 py-1 rounded-full text-sm flex items-center">
+                        <span class="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+                        <span>Testnet</span>
+                    </button>
+                    <button id="connect-wallet" class="bg-white text-indigo-600 hover:bg-gray-100 px-4 py-1 rounded-full text-sm font-medium">
+                        Connect Wallet
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-1 container mx-auto p-4 max-w-4xl">
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col h-full">
+                <!-- Chat Container -->
+                <div id="chat-messages" class="chat-container overflow-y-auto p-4 space-y-4">
+                    <!-- Welcome message -->
+                    <div class="message-animation flex">
+                        <div class="flex-shrink-0 mr-3">
+                            <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/d648efea-04f3-4d43-a76c-cfd321ce0041.png" alt="Chat2Chain avatar" class="w-8 h-8 rounded-full" />
+                        </div>
+                        <div class="bg-gray-100 p-4 rounded-xl max-w-[80%]">
+                            <h3 class="font-bold text-indigo-600">Chat2Chain</h3>
+                            <p class="text-gray-800">Hello! I'm your blockchain assistant. You can talk to me naturally to interact with smart contracts.</p>
+                            <p class="text-gray-600 text-sm mt-2">Try saying things like:</p>
+                            <ul class="list-disc list-inside text-sm text-gray-600 space-y-1">
+                                <li>"Send 0.2 ETH to Alice"</li>
+                                <li>"What's my balance?"</li>
+                                <li>"Swap 1 ETH for USDC"</li>
+                                <li>"Show my recent transactions"</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input Area -->
+                <div class="border-t border-gray-200 p-4 bg-gray-50">
+                    <div class="flex space-x-2">
+                        <input 
+                            id="message-input" 
+                            type="text" 
+                            placeholder="Type your blockchain command..." 
+                            class="flex-1 border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+                            autocomplete="off"
+                        />
+                        <button id="send-button" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-medium transition duration-200 flex items-center">
+                            <i class="fas fa-paper-plane mr-2"></i>
+                            <span class="hidden sm:inline">Send</span>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2 text-center">Chat2Chain will convert your natural language into smart contract actions</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Transaction Modal -->
+    <div id="transaction-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl p-6 max-w-md w-full">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">Confirm Transaction</h3>
+                <button id="close-modal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="transaction-details" class="space-y-4">
+                <!-- Dynamically filled -->
+            </div>
+            <div class="mt-6 flex justify-between">
+                <button id="cancel-transaction" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100">
+                    Cancel
+                </button>
+                <button id="confirm-transaction" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const chatMessages = document.getElementById('chat-messages');
+        const connectWalletBtn = document.getElementById('connect-wallet');
+        const transactionModal = document.getElementById('transaction-modal');
+        const closeModalBtn = document.getElementById('close-modal');
+        const cancelTransactionBtn = document.getElementById('cancel-transaction');
+        const confirmTransactionBtn = document.getElementById('confirm-transaction');
+        const transactionDetails = document.getElementById('transaction-details');
+        
+        // Mock AI service - would be replaced with actual API calls in production
+        async function interpretCommand(command) {
+            // This would call a real AI service in production
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    const randomDelay = Math.random() * 1000 + 500;
+                    setTimeout(() => {
+                        // Simple parser for demo purposes
+                        const lowerCmd = command.toLowerCase();
+                        
+                        if (lowerCmd.includes('send') && (lowerCmd.includes('eth') || lowerCmd.includes('ether'))) {
+                            // Extract amount and recipient
+                            const amountMatch = command.match(/\d+(\.\d+)?/);
+                            const amount = amountMatch ? amountMatch[0] : '0.1';
+                            
+                            const recipientMatch = command.match(/to\s+(\w+)/i);
+                            const recipient = recipientMatch ? recipientMatch[1] : 'someone';
+                            
+                            resolve({
+                                intent: 'send_eth',
+                                message: `Understood! You want to send ${amount} ETH to ${recipient}.`,
+                                action: {
+                                    type: 'send_eth',
+                                    amount: amount,
+                                    recipient: recipient.toLowerCase(),
+                                    network: 'ethereum'
+                                }
+                            });
+                        } else if (lowerCmd.includes('balance') || lowerCmd.includes('check balance')) {
+                            resolve({
+                                intent: 'check_balance',
+                                message: `I'll check your ETH balance on the current network.`,
+                                action: {
+                                    type: 'check_balance',
+                                    network: 'ethereum'
+                                }
+                            });
+                        } else {
+                            resolve({
+                                intent: 'unknown',
+                                message: `I'm not sure I understood that command. Could you try rephrasing?`,
+                                action: null
+                            });
+                        }
+                    }, randomDelay);
+                }, 500); // Simulate network delay
+            });
+        }
+        
+        // Simulate blockchain interaction
+        async function executeBlockchainAction(action) {
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    let result;
+                    
+                    switch(action.type) {
+                        case 'send_eth':
+                            result = {
+                                success: true,
+                                message: `Successfully sent ${action.amount} ETH to ${action.recipient}.`,
+                                transactionHash: '0x' + Math.random().toString(16).substr(2, 64)
+                            };
+                            break;
+                        case 'check_balance':
+                            result = {
+                                success: true,
+                                message: `Your ETH balance is ${(Math.random() * 10).toFixed(4)} ETH.`,
+                                balance: (Math.random() * 10).toFixed(4)
+                            };
+                            break;
+                        default:
+                            result = {
+                                success: false,
+                                message: 'Failed to execute action. Please try again.'
+                            };
+                    }
+                    
+                    resolve(result);
+                }, 1500); // Simulate blockchain processing delay
+            });
+        }
+        
+        // Display a message in the chat
+        function addMessage(author, text, isUser = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message-animation flex ${isUser ? 'justify-end' : ''}`;
+            
+            const avatar = isUser ? '' : `
+                <div class="flex-shrink-0 mr-3">
+                    <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c5c8020f-cb31-4d8e-9135-b84291cf2db2.png" alt="Chat2Chain avatar" class="w-8 h-8 rounded-full" />
+                </div>
+            `;
+            
+            const messageContent = isUser 
+                ? `
+                    <div class="bg-indigo-600 text-white p-4 rounded-xl max-w-[80%]">
+                        <p>${text}</p>
+                    </div>
+                `
+                : `
+                    <div class="bg-gray-100 p-4 rounded-xl max-w-[80%]">
+                        <h3 class="font-bold text-indigo-600">${author}</h3>
+                        <p class="text-gray-800">${text}</p>
+                    </div>
+                `;
+            
+            messageDiv.innerHTML = avatar + messageContent;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Show transaction confirmation dialog
+        function showTransactionDialog(action) {
+            let content = '';
+            
+            if (action.type === 'send_eth') {
+                content = `
+                    <div>
+                        <p class="font-medium">Action:</p>
+                        <p class="text-gray-700">Send ${action.amount} ETH</p>
+                    </div>
+                    <div>
+                        <p class="font-medium">To:</p>
+                        <p class="text-gray-700">${action.recipient}</p>
+                    </div>
+                    <div>
+                        <p class="font-medium">Network:</p>
+                        <p class="text-gray-700">Ethereum ${action.network}</p>
+                    </div>
+                    <div class="bg-yellow-50 p-3 rounded-lg text-yellow-800 text-sm">
+                        <i class="fas fa-exclamation-circle mr-2"></i>
+                        This will initiate a blockchain transaction. Make sure the details are correct.
+                    </div>
+                `;
+            }
+            
+            transactionDetails.innerHTML = content;
+            transactionModal.classList.remove('hidden');
+        }
+        
+        // Event listeners
+        sendButton.addEventListener('click', async () => {
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            // Add user message to chat
+            addMessage('You', message, true);
+            messageInput.value = '';
+            
+            // Show typing indicator
+            const typingIndicator = document.createElement('div');
+            typingIndicator.className = 'message-animation flex';
+            typingIndicator.innerHTML = `
+                <div class="flex-shrink-0 mr-3">
+                    <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/1f0c1e0b-79f7-4805-9898-57122bd9e65c.png" alt="Chat2Chain typing" class="w-8 h-8 rounded-full" />
+                </div>
+                <div class="bg-gray-100 p-4 rounded-xl max-w-[80%] flex items-center space-x-2">
+                    <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                    <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                </div>
+            `;
+            chatMessages.appendChild(typingIndicator);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Interpret command
+            const interpretation = await interpretCommand(message);
+            
+            // Remove typing indicator
+            chatMessages.removeChild(typingIndicator);
+            
+            // Add bot response
+            addMessage('Chat2Chain', interpretation.message);
+            
+            // If there's an action to perform, show confirmation or execute
+            if (interpretation.action) {
+                if (interpretation.action.type === 'send_eth') {
+                    showTransactionDialog(interpretation.action);
+                } else {
+                    // For non-transaction actions, execute immediately
+                    const result = await executeBlockchainAction(interpretation.action);
+                    addMessage('Chat2Chain', result.message);
+                }
+            }
+        });
+        
+        // Allow sending with Enter key
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendButton.click();
+            }
+        });
+        
+        // Wallet connection simulation
+        connectWalletBtn.addEventListener('click', () => {
+            connectWalletBtn.textContent = '0x7f3...d4f2';
+            connectWalletBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+            connectWalletBtn.classList.add('bg-green-100', 'text-green-800', 'hover:bg-green-200');
+            
+            // Show connected status
+            addMessage('Chat2Chain', `Wallet connected! You're ready to interact with the blockchain.`);
+        });
+        
+        // Transaction modal handlers
+        closeModalBtn.addEventListener('click', () => {
+            transactionModal.classList.add('hidden');
+        });
+        
+        cancelTransactionBtn.addEventListener('click', () => {
+            transactionModal.classList.add('hidden');
+            addMessage('Chat2Chain', 'Transaction cancelled.');
+        });
+        
+        confirmTransactionBtn.addEventListener('click', async () => {
+            transactionModal.classList.add('hidden');
+            addMessage('Chat2Chain', 'Processing your transaction on the blockchain...');
+            
+            // Get the action (in a real app, this would come from state)
+            const action = { type: 'send_eth', amount: '0.2', recipient: 'alice' };
+            
+            const result = await executeBlockchainAction(action);
+            addMessage('Chat2Chain', result.message);
+            
+            if (result.transactionHash) {
+                addMessage('Chat2Chain', `Transaction ID: ${result.transactionHash}`);
+            }
+        });
+        
+        // Initialization
+        document.addEventListener('DOMContentLoaded', () => {
+            messageInput.focus();
+        });
+    </script>
+</body>
+</html>
+
