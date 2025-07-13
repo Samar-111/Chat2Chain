@@ -31,3 +31,7 @@ View Responses The assistant will respond with the outcome of your command, incl
 
 License
 This project is licensed under the MIT License. See the `LICENSE` file for more details.
+
+##PROJECT SCREENSHOTS:
+<img width="1919" height="969" alt="image" src="https://github.com/user-attachments/assets/79fd3957-634c-405a-a383-cf755bd62c55" />
+
