@@ -30,4 +30,4 @@ Confirm Transactions If your command involves a transaction (like sending ETH), 
 View Responses The assistant will respond with the outcome of your command, including any transaction IDs if applicable.
 
 License
-This project is licensed under the MIT License. See the LICENSE file for more details.
+This project is licensed under the MIT License. See the `LICENSE` file for more details.
